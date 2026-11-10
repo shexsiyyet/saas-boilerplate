@@ -9,6 +9,11 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    // Handle build-time when DATABASE_URL is not available
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json({ message: 'If the email exists, a reset link has been sent' })
+    }
+
     const { email } = await request.json()
 
     if (!email) {

@@ -7,6 +7,11 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    // Handle build-time when DATABASE_URL is not available
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json({ received: true })
+    }
+
     const body = await request.text()
     const headersList = await headers()
     const signature = headersList.get('stripe-signature')

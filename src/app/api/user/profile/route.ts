@@ -12,6 +12,11 @@ export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest) {
   try {
+    // Handle build-time when DATABASE_URL is not available
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
+    }
+
     const session = await auth()
     if (!session?.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })

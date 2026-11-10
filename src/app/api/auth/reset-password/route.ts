@@ -6,6 +6,11 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    // Handle build-time when DATABASE_URL is not available
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
+    }
+
     const { token, password } = await request.json()
 
     if (!token || !password) {
