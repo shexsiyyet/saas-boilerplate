@@ -9,6 +9,8 @@ const passwordSchema = z.object({
   newPassword: z.string().min(8),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function PATCH(request: NextRequest) {
   try {
     const session = await auth()
