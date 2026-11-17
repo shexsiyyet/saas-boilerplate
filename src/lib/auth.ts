@@ -39,6 +39,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user || !user.password) return null
 
+        if (!user.emailVerified) {
+          throw new Error('Email not verified')
+        }
+
         const valid = await bcrypt.compare(password, user.password)
         if (!valid) return null
 
@@ -56,7 +60,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id
-        token.role = (user as any).role
+        token.role = user.role as string
       }
       if (trigger === 'update' && session) {
         token.name = session.name

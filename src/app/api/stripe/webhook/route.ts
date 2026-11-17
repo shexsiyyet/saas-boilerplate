@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
               stripeSubscriptionId: subscription.id,
               stripePriceId: priceId,
               stripeCurrentPeriodEnd: currentPeriodEnd,
-              plan: plan as any,
-              status: status.toUpperCase() as any,
+              plan,
+              status: status.toUpperCase(),
               cancelAtPeriodEnd,
             },
           })

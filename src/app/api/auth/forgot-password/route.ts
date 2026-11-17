@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { Resend } from 'resend'
+import { authRateLimit } from '@/lib/rate-limit'
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = await authRateLimit(request)
+  if (rateLimitResponse) return rateLimitResponse
   try {
     // Handle build-time when DATABASE_URL is not available
     if (!process.env.DATABASE_URL) {

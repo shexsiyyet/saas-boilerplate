@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { apiRateLimit } from '@/lib/rate-limit'
 
 const profileSchema = z.object({
   name: z.string().min(2),
@@ -11,6 +12,8 @@ const profileSchema = z.object({
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest) {
+  const rateLimitResponse = await apiRateLimit(request)
+  if (rateLimitResponse) return rateLimitResponse
   try {
     // Handle build-time when DATABASE_URL is not available
     if (!process.env.DATABASE_URL) {

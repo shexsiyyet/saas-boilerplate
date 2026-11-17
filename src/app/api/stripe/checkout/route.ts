@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Price ID is required' }, { status: 400 })
     }
 
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: { subscription: true },
     })

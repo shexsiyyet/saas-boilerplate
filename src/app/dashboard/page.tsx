@@ -8,12 +8,10 @@ import {
   CreditCard,
   BarChart3,
   Activity,
-  ArrowUpRight,
   TrendingUp,
-  DollarSign,
   Clock,
 } from 'lucide-react'
-import { formatPrice, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 
 async function getStats() {
   const [totalUsers, totalSubscriptions, activeSubscriptions, recentUsers] = await Promise.all([

@@ -4,22 +4,93 @@ import * as React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatPrice } from '@/lib/utils'
+import { Loader2, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
-const usageData = Array.from({ length: 30 }, (_, i) => ({
-  date: new Date(Date.now() - (29 - i) * 86400000).toISOString().split('T')[0],
-  calls: Math.floor(Math.random() * 500) + 100,
-  errors: Math.floor(Math.random() * 20),
-  latency: Math.floor(Math.random() * 200) + 50,
-}))
-
-const monthlyData = Array.from({ length: 12 }, (_, i) => ({
-  month: new Date(2024, i, 1).toLocaleString('default', { month: 'short' }),
-  calls: Math.floor(Math.random() * 10000) + 2000,
-  users: Math.floor(Math.random() * 100) + 10,
-}))
+interface AnalyticsData {
+  overview: {
+    totalCalls: number
+    avgResponseTime: string
+    errorRate: string
+    activeUsers: number
+    currentUsage: { count: number; limit: number; remaining: number }
+    subscription: { plan: string; status: string; currentPeriodEnd: string | null }
+    teamMembers: number
+    apiKeys: number
+  }
+  dailyUsage: Array<{ date: string; calls: number; errors: number; latency: number }>
+  monthlyData: Array<{ month: string; calls: number; users: number }>
+  endpoints: Array<{ endpoint: string; calls: number; avgLatency: string; errorRate: string; p95: string }>
+  teamMembers: Array<{ id: string; email: string; role: string; status: string; joinedAt: string; user: { id: string; name: string | null; email: string; image: string | null } | null }>
+  apiKeys: Array<{ id: string; name: string; prefix: string; lastUsed: string | null; expiresAt: string | null; createdAt: string }>
+}
 
 export default function AnalyticsPage() {
+  const [data, setData] = React.useState<AnalyticsData | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const fetchData = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/analytics')
+      if (!response.ok) throw new Error('Failed to fetch analytics')
+      const result = await response.json()
+      setData(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  React.useEffect(() => {
+    fetchData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+          <p className="text-muted-foreground mt-1">Monitor your API usage and performance</p>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground">Loading analytics...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+          <p className="text-muted-foreground mt-1">Monitor your API usage and performance</p>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-destructive mb-4">{error}</p>
+            <Button variant="outline" onClick={fetchData}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const usageData = data?.dailyUsage || []
+  const monthlyData = data?.monthlyData || []
+  const endpoints = data?.endpoints || []
+
   return (
     <div className="space-y-6">
       <div>
@@ -41,7 +112,7 @@ export default function AnalyticsPage() {
                 <CardTitle className="text-sm font-medium">Total API Calls</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">12,345</div>
+                <div className="text-2xl font-bold">{data?.overview.totalCalls.toLocaleString() || '0'}</div>
                 <p className="text-xs text-muted-foreground">+12% from last month</p>
               </CardContent>
             </Card>
@@ -50,7 +121,7 @@ export default function AnalyticsPage() {
                 <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">127ms</div>
+                <div className="text-2xl font-bold">{data?.overview.avgResponseTime || '127ms'}</div>
                 <p className="text-xs text-muted-foreground">-5% from last month</p>
               </CardContent>
             </Card>
@@ -59,7 +130,7 @@ export default function AnalyticsPage() {
                 <CardTitle className="text-sm font-medium">Error Rate</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0.23%</div>
+                <div className="text-2xl font-bold">{data?.overview.errorRate || '0.23%'}</div>
                 <p className="text-xs text-muted-foreground">+0.1% from last month</p>
               </CardContent>
             </Card>
@@ -68,7 +139,7 @@ export default function AnalyticsPage() {
                 <CardTitle className="text-sm font-medium">Active Users</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">1,234</div>
+                <div className="text-2xl font-bold">{data?.overview.activeUsers || 1}</div>
                 <p className="text-xs text-muted-foreground">+8% from last month</p>
               </CardContent>
             </Card>
@@ -200,13 +271,7 @@ export default function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { endpoint: 'GET /api/users', calls: 5432, avgLatency: '127ms', errorRate: '0.1%', p95: '245ms' },
-                      { endpoint: 'POST /api/auth/login', calls: 2341, avgLatency: '89ms', errorRate: '0.3%', p95: '156ms' },
-                      { endpoint: 'GET /api/analytics', calls: 1876, avgLatency: '234ms', errorRate: '0.2%', p95: '412ms' },
-                      { endpoint: 'POST /api/webhooks/stripe', calls: 567, avgLatency: '45ms', errorRate: '0%', p95: '78ms' },
-                      { endpoint: 'GET /api/usage', calls: 3421, avgLatency: '67ms', errorRate: '0.1%', p95: '123ms' },
-                    ].map((row) => (
+                    {endpoints.map((row) => (
                       <tr key={row.endpoint} className="border-b last:border-0">
                         <td className="p-4 font-mono text-sm">{row.endpoint}</td>
                         <td className="p-4">{row.calls.toLocaleString()}</td>

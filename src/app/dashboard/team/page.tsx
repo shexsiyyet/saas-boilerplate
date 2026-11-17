@@ -5,14 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from '@/components/ui/table'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from '@/hooks/use-toast'
-import { Users, Plus, Mail, Shield, Loader2, MoreHorizontal, Trash2, Edit } from 'lucide-react'
+import { Users, Plus, Shield, Loader2, Trash2, RefreshCw } from 'lucide-react'
 
 const inviteSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -23,49 +23,72 @@ type InviteData = z.infer<typeof inviteSchema>
 
 interface TeamMember {
   id: string
-  name: string
+  name: string | null
   email: string
   role: 'OWNER' | 'ADMIN' | 'MEMBER'
   status: 'ACTIVE' | 'PENDING'
   joinedAt: string
+  user?: {
+    id: string
+    name: string | null
+    email: string
+    image: string | null
+  } | null
 }
 
-const mockMembers: TeamMember[] = [
-  { id: '1', name: 'John Doe', email: 'john@example.com', role: 'OWNER', status: 'ACTIVE', joinedAt: '2024-01-15' },
-  { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'ADMIN', status: 'ACTIVE', joinedAt: '2024-02-20' },
-  { id: '3', name: 'Bob Wilson', email: 'bob@example.com', role: 'MEMBER', status: 'ACTIVE', joinedAt: '2024-03-10' },
-  { id: '4', name: 'Alice Brown', email: 'alice@example.com', role: 'MEMBER', status: 'PENDING', joinedAt: '2024-04-01' },
-]
-
 export default function TeamPage() {
-  const [members, setMembers] = React.useState<TeamMember[]>(mockMembers)
+  const [members, setMembers] = React.useState<TeamMember[]>([])
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false)
-  const [editingMember, setEditingMember] = React.useState<TeamMember | null>(null)
   const [loading, setLoading] = React.useState<string | null>(null)
+  const [isLoading, setIsLoading] = React.useState(true)
 
   const inviteForm = useForm<InviteData>({
     resolver: zodResolver(inviteSchema),
     defaultValues: { email: '', role: 'MEMBER' },
   })
 
+  const fetchMembers = async () => {
+    try {
+      const response = await fetch('/api/team/members')
+      const data = await response.json()
+      if (data.members) {
+        setMembers(data.members.map((m: any) => ({
+          ...m,
+          name: m.user?.name || m.email.split('@')[0],
+          joinedAt: m.createdAt ? new Date(m.createdAt).toISOString().split('T')[0] : 'Unknown',
+        })))
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load team members', variant: 'destructive' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  React.useEffect(() => {
+    fetchMembers()
+  }, [])
+
   const onInviteSubmit = async (data: InviteData) => {
     setLoading('invite')
     try {
-      await new Promise(r => setTimeout(r, 1000))
-      const newMember: TeamMember = {
-        id: Date.now().toString(),
-        name: data.email.split('@')[0],
-        email: data.email,
-        role: data.role === 'ADMIN' ? 'ADMIN' : 'MEMBER',
-        status: 'PENDING',
-        joinedAt: new Date().toISOString().split('T')[0],
+      const response = await fetch('/api/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to send invitation')
       }
-      setMembers(prev => [...prev, newMember])
+
       toast({ title: 'Success', description: `Invitation sent to ${data.email}` })
       setInviteDialogOpen(false)
       inviteForm.reset()
-    } catch {
-      toast({ title: 'Error', description: 'Failed to send invitation', variant: 'destructive' })
+      fetchMembers()
+    } catch (error) {
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to send invitation', variant: 'destructive' })
     } finally {
       setLoading(null)
     }
@@ -74,7 +97,16 @@ export default function TeamPage() {
   const handleRoleChange = async (memberId: string, newRole: 'ADMIN' | 'MEMBER') => {
     setLoading(`role-${memberId}`)
     try {
-      await new Promise(r => setTimeout(r, 500))
+      const response = await fetch(`/api/team/members/${memberId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update role')
+      }
+
       setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m))
       toast({ title: 'Success', description: 'Role updated' })
     } catch {
@@ -88,7 +120,14 @@ export default function TeamPage() {
     if (!confirm('Are you sure you want to remove this member?')) return
     setLoading(`remove-${memberId}`)
     try {
-      await new Promise(r => setTimeout(r, 500))
+      const response = await fetch(`/api/team/members/${memberId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to remove member')
+      }
+
       setMembers(prev => prev.filter(m => m.id !== memberId))
       toast({ title: 'Success', description: 'Member removed' })
     } catch {
@@ -101,13 +140,37 @@ export default function TeamPage() {
   const handleResendInvite = async (member: TeamMember) => {
     setLoading(`resend-${member.id}`)
     try {
-      await new Promise(r => setTimeout(r, 500))
+      const response = await fetch(`/api/team/resend-invite/${member.id}`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to resend invitation')
+      }
+
       toast({ title: 'Success', description: `Invitation resent to ${member.email}` })
     } catch {
       toast({ title: 'Error', description: 'Failed to resend invitation', variant: 'destructive' })
     } finally {
       setLoading(null)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Team</h1>
+          <p className="text-muted-foreground mt-1">Manage team members and permissions</p>
+        </div>
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground">Loading team members...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -117,56 +180,62 @@ export default function TeamPage() {
           <h1 className="text-3xl font-bold tracking-tight">Team</h1>
           <p className="text-muted-foreground mt-1">Manage team members and permissions</p>
         </div>
-        <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Invite Member
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite Team Member</DialogTitle>
-              <DialogDescription>Enter their email address to send an invitation</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={inviteForm.handleSubmit(onInviteSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="colleague@company.com"
-                  {...inviteForm.register('email')}
-                  disabled={loading === 'invite'}
-                />
-                {inviteForm.formState.errors.email && (
-                  <p className="text-sm text-destructive">{inviteForm.formState.errors.email.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-accent">
-                    <Input type="radio" value="MEMBER" {...inviteForm.register('role')} />
-                    <span className="text-sm">Member</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-accent">
-                    <Input type="radio" value="ADMIN" {...inviteForm.register('role')} />
-                    <span className="text-sm">Admin</span>
-                  </label>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={fetchMembers} disabled={loading === 'refresh'}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading === 'refresh' ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Invite Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Invite Team Member</DialogTitle>
+                <DialogDescription>Enter their email address to send an invitation</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={inviteForm.handleSubmit(onInviteSubmit)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="colleague@company.com"
+                    {...inviteForm.register('email')}
+                    disabled={loading === 'invite'}
+                  />
+                  {inviteForm.formState.errors.email && (
+                    <p className="text-sm text-destructive">{inviteForm.formState.errors.email.message}</p>
+                  )}
                 </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setInviteDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={loading === 'invite'}>
-                  {loading === 'invite' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send Invitation'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <div className="space-y-2">
+                  <Label>Role</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-accent">
+                      <Input type="radio" value="MEMBER" {...inviteForm.register('role')} />
+                      <span className="text-sm">Member</span>
+                    </label>
+                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-accent">
+                      <Input type="radio" value="ADMIN" {...inviteForm.register('role')} />
+                      <span className="text-sm">Admin</span>
+                    </label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setInviteDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={loading === 'invite'}>
+                    {loading === 'invite' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send Invitation'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -178,76 +247,82 @@ export default function TeamPage() {
           <CardDescription>{members.length} member{members.length !== 1 ? 's' : ''}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Member</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                          {member.name.charAt(0)}
+          {members.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No team members yet. Invite someone to get started!</p>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
+                            {member.name?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <p className="font-medium">{member.name || 'Unknown'}</p>
+                            <p className="text-sm text-muted-foreground">{member.email}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-sm text-muted-foreground">{member.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <select
-                        value={member.role}
-                        onChange={(e) => handleRoleChange(member.id, e.target.value as 'ADMIN' | 'MEMBER')}
-                        disabled={member.role === 'OWNER' || loading === `role-${member.id}`}
-                        className="px-2 py-1 border rounded text-sm bg-background"
-                      >
-                        <option value="MEMBER">Member</option>
-                        <option value="ADMIN">Admin</option>
-                        <option value="OWNER" disabled>Owner</option>
-                      </select>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={member.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                        {member.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{member.joinedAt}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {member.status === 'PENDING' && (
+                      </TableCell>
+                      <TableCell>
+                        <select
+                          value={member.role}
+                          onChange={(e) => handleRoleChange(member.id, e.target.value as 'ADMIN' | 'MEMBER')}
+                          disabled={member.role === 'OWNER' || loading === `role-${member.id}`}
+                          className="px-2 py-1 border rounded text-sm bg-background"
+                        >
+                          <option value="MEMBER">Member</option>
+                          <option value="ADMIN">Admin</option>
+                          <option value="OWNER" disabled>Owner</option>
+                        </select>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={member.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                          {member.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{member.joinedAt}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {member.status === 'PENDING' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendInvite(member)}
+                              disabled={loading === `resend-${member.id}`}
+                            >
+                              {loading === `resend-${member.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend'}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleResendInvite(member)}
-                            disabled={loading === `resend-${member.id}`}
+                            onClick={() => handleRemoveMember(member.id)}
+                            disabled={member.role === 'OWNER' || loading === `remove-${member.id}`}
                           >
-                            {loading === `resend-${member.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend'}
+                            {loading === `remove-${member.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveMember(member.id)}
-                          disabled={member.role === 'OWNER' || loading === `remove-${member.id}`}
-                        >
-                          {loading === `remove-${member.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 

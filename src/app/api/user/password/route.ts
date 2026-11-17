@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+import { authRateLimit } from '@/lib/rate-limit'
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1),
@@ -12,6 +13,8 @@ const passwordSchema = z.object({
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest) {
+  const rateLimitResponse = await authRateLimit(request)
+  if (rateLimitResponse) return rateLimitResponse
   try {
     // Handle build-time when DATABASE_URL is not available
     if (!process.env.DATABASE_URL) {

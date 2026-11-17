@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { apiRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const rateLimitResponse = await apiRateLimit(request)
+  if (rateLimitResponse) return rateLimitResponse
   try {
     // Handle build-time when DATABASE_URL is not available
     if (!process.env.DATABASE_URL) {
@@ -50,6 +53,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = await apiRateLimit(request)
+  if (rateLimitResponse) return rateLimitResponse
   try {
     const session = await auth()
     if (!session?.user) {

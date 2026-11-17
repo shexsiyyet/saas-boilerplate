@@ -1,13 +1,12 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Check, X, Loader2, CreditCard, Receipt, Settings, ArrowRight } from 'lucide-react'
+import { Check, Loader2, CreditCard, Settings, ArrowRight } from 'lucide-react'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 
@@ -52,14 +51,12 @@ interface BillingClientProps {
 }
 
 export function BillingClient({ initialSubscription, initialUsage }: BillingClientProps) {
-  const router = useRouter()
   const [subscription, setSubscription] = React.useState(initialSubscription)
-  const [usage, setUsage] = React.useState(initialUsage)
+  const [usage] = React.useState(initialUsage)
   const [loading, setLoading] = React.useState<string | null>(null)
   const [activeTab, setActiveTab] = React.useState('plans')
 
   const isPro = subscription.plan === 'PRO'
-  const currentPlan = PLANS.find(p => p.id === (isPro ? 'pro_monthly' : 'free')) || PLANS[0]
 
   const handleCheckout = async (priceId: string) => {
     setLoading(priceId)

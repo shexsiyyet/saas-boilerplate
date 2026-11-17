@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { apiRateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: NextRequest) {
+  const rateLimitResponse = await apiRateLimit(request)
+  if (rateLimitResponse) return rateLimitResponse
   try {
     const session = await auth()
     if (!session?.user) {

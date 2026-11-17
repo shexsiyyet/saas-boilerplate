@@ -5,7 +5,6 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth
   const isOnDashboard = req.nextUrl.pathname.startsWith('/dashboard')
   const isOnAuth = req.nextUrl.pathname.startsWith('/auth')
-  const isOnApi = req.nextUrl.pathname.startsWith('/api')
 
   if (isOnDashboard) {
     if (!isLoggedIn) {

@@ -5,7 +5,7 @@ import { reactivateSubscription } from '@/lib/stripe'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Handle build-time when DATABASE_URL is not available
     if (!process.env.DATABASE_URL) {

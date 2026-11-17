@@ -8,22 +8,27 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime?
-  name          String?
-  image         String?
-  password      String?
-  role          String    @default("USER")
-  resetToken    String?
-  resetTokenExpiry DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  emailVerified         DateTime?
+  emailVerificationToken String?
+  emailVerificationExpiry DateTime?
+  name                  String?
+  image                 String?
+  password              String?
+  role                  String    @default("USER")
+  resetToken            String?
+  resetTokenExpiry      DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  subscription  Subscription?
-  usage         Usage?
+  accounts              Account[]
+  sessions              Session[]
+  subscription          Subscription?
+  usage                 Usage?
+  teamMemberships       TeamMember[] @relation("TeamMembers")
+  ownedTeam             TeamMember[] @relation("TeamOwner")
+  apiKeys               ApiKey[]
 }
 
 model Account {
@@ -87,4 +92,38 @@ model Usage {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TeamMember {
+  id            String    @id @default(cuid())
+  teamId        String
+  userId        String?
+  email         String
+  role          String    @default("MEMBER")
+  status        String    @default("PENDING")
+  inviteToken   String?   @unique
+  inviteExpiry  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  team  User @relation("TeamOwner", fields: [teamId], references: [id], onDelete: Cascade)
+  user  User? @relation("TeamMembers", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, email])
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  keyHash   String
+  prefix    String
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

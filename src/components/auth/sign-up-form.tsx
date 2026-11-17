@@ -55,7 +55,7 @@ export function SignUpForm() {
         return
       }
 
-      toast({ title: 'Success', description: 'Account created! Please sign in.' })
+      toast({ title: 'Success', description: result.message || 'Account created! Please check your email to verify.' })
       router.push('/auth/signin?registered=true')
     } catch {
       toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' })
